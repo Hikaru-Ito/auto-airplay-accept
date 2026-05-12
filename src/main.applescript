@@ -131,8 +131,8 @@ on handleSessionTransition()
 	-- OSがアプリを自動pauseするのは pmset assertion が立つ数秒前なので、
 	-- assertion 検出時点では state が既に "paused" になっている。
 	-- 直前の "playing" 観測時刻を持ち続けることでこのラグを補正する。
-	if my getPlayerState("Spotify") is "playing" then set spotifyLastPlayingAt to nowAt
-	if my getPlayerState("Music") is "playing" then set musicLastPlayingAt to nowAt
+	if my isPlayerPlaying("Spotify") then set spotifyLastPlayingAt to nowAt
+	if my isPlayerPlaying("Music") then set musicLastPlayingAt to nowAt
 
 	if active and (not wasAirPlayActive) then
 		set shouldResumeSpotify to my wasRecentlyPlaying(spotifyLastPlayingAt, nowAt)
@@ -168,46 +168,28 @@ on wasRecentlyPlaying(lastAt, nowAt)
 	return (nowAt - lastAt) ≤ recentPlayingThreshold
 end wasRecentlyPlaying
 
--- Spotify / Music の player state は enum constant として返るので、明示的に
--- 文字列に変換する。`as string` ではcoerceされない。
-on getPlayerState(appName)
+-- Spotify / Music の player state は enum constant で返り、`tell application` の
+-- ブロック内でないと `playing` などの定数識別子をコンパイルできない。Spotify は
+-- CIランナーに未インストール、Music も `fast forwarding` のような複合語が環境
+-- 依存でコンパイルエラーを起こすため、`run script` を使って当該アプリ内で
+-- 動的に評価する。これによりコンパイル時に対象アプリの辞書が不要になる。
+on isPlayerPlaying(appName)
 	tell application "System Events"
-		if not (exists (process appName)) then return "not running"
+		if not (exists (process appName)) then return false
 	end tell
 	try
-		if appName is "Spotify" then
-			tell application "Spotify"
-				set ps to player state
-				if ps is playing then return "playing"
-				if ps is paused then return "paused"
-				if ps is stopped then return "stopped"
-			end tell
-		else if appName is "Music" then
-			tell application "Music"
-				set ps to player state
-				if ps is playing then return "playing"
-				if ps is paused then return "paused"
-				if ps is stopped then return "stopped"
-				if ps is fast forwarding then return "fast forwarding"
-				if ps is rewinding then return "rewinding"
-			end tell
-		end if
+		return (run script "tell application \"" & appName & "\" to return (player state is playing)") as boolean
 	on error
-		return "error"
+		return false
 	end try
-	return "unknown"
-end getPlayerState
+end isPlayerPlaying
 
 on safePlay(appName)
 	tell application "System Events"
 		if not (exists (process appName)) then return
 	end tell
 	try
-		if appName is "Spotify" then
-			tell application "Spotify" to play
-		else if appName is "Music" then
-			tell application "Music" to play
-		end if
+		run script "tell application \"" & appName & "\" to play"
 	end try
 end safePlay
 
