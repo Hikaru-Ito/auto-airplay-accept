@@ -1,24 +1,25 @@
 # AirPlay Auto Accept
 
-> A tiny background macOS app that automatically clicks "Accept" on incoming AirPlay connection dialogs.
+> A tiny background macOS app that automatically clicks "Accept" on incoming AirPlay connection dialogs — and resumes the music it interrupted.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-11%2B-black.svg)](https://www.apple.com/macos/)
 [![Made with AppleScript](https://img.shields.io/badge/Made_with-AppleScript-lightgrey.svg)]()
 
-Every time you AirPlay from an iPhone or iPad to your Mac, macOS asks you to approve the connection. Even from a device you've connected a hundred times before, you still get the same dialog.
+Every time you AirPlay from an iPhone or iPad to your Mac, macOS asks you to approve the connection. Even from a device you've connected a hundred times before, you still get the same dialog. And when the connection is approved, macOS silently pauses whatever music you were playing on the Mac — and never resumes it for you when the AirPlay session ends.
 
-Install this app and that click goes away. It runs silently in the background and accepts AirPlay connections for you.
+Install this app and both annoyances go away. It runs silently in the background and accepts AirPlay connections for you, then resumes Spotify or Music once the AirPlay session is over.
 
 **Landing page:** https://hikaru-ito.github.io/auto-airplay-accept/
 
 ## ✨ Features
 
 - **Zero interaction** — automatically clicks "Accept" the moment an AirPlay banner appears
+- **Auto music resume** — when the AirPlay session ends, resumes Spotify / Music if it was playing before
 - **Language-independent** — identifies the Accept button by structure/position, not localized label, so it works on any macOS language
 - **Fully background** — no Dock icon, no menu bar item, no window
 - **Lightweight** — built on AppleScript; negligible CPU/memory footprint
-- **Open source** — under 100 lines of AppleScript you can audit before running
+- **Open source** — under 200 lines of AppleScript you can audit before running
 
 ## 📦 Installation
 
@@ -29,7 +30,8 @@ Install this app and that click goes away. It runs silently in the background an
 3. On first launch, **right-click → Open** (the app is signed with an ad-hoc signature, so double-clicking will be blocked by Gatekeeper)
 4. When prompted, grant Accessibility permission:
    - System Settings → Privacy & Security → Accessibility → enable `AirPlay Auto Accept`
-5. (Optional) Add the app to System Settings → General → Login Items so it starts at boot
+5. (Optional) On the first AirPlay session, macOS will prompt "AirPlay Auto Accept wants to control Spotify / Music" — click **OK**. This is needed to resume playback after the session ends.
+6. (Optional) Add the app to System Settings → General → Login Items so it starts at boot
 
 ### Option B — Build from source
 
@@ -44,6 +46,8 @@ The build uses only macOS-bundled tools (`osacompile` and `PlistBuddy`). No addi
 
 ## 🛠 How it works
 
+### Accepting the banner
+
 The AirPlay receiver prompt on modern macOS is **not a regular dialog window** — it's a notification banner rendered by the `NotificationCenter` process, and its button labels are not exposed via the Accessibility API. A naive `click button "Accept"` does not work.
 
 1. `osacompile -s` compiles the AppleScript as a **stay-open applet**
@@ -54,14 +58,22 @@ The AirPlay receiver prompt on modern macOS is **not a regular dialog window** �
 4. Among those buttons, it clicks the one with the **largest Y coordinate** (the one positioned lower on screen) — that's always the Accept button on macOS
 5. `LSUIElement = true` in `Info.plist` hides the app from the Dock and menu bar
 
-The entire implementation lives in [`src/main.applescript`](src/main.applescript) — around 90 lines.
+### Resuming music after the session
+
+When AirPlay receiving starts, macOS auto-pauses anything playing on the Mac and never resumes it. AirPlay sessions don't expose any direct AppleScript hook, but they do leave a fingerprint in the system power assertions: while a session is active, `ControlCenter` holds an assertion named `com.apple.airplay.audio`.
+
+The applet polls `pmset -g assertions` for that string. When it appears, the session has just started; when it disappears, the session has just ended. On every poll it also remembers when Spotify / Music was last observed `playing`, and on session end it resumes any player that was playing recently before macOS paused it (default: within 15 seconds).
+
+The entire implementation lives in [`src/main.applescript`](src/main.applescript) — around 190 lines.
 
 ## ⚙️ Configuration
 
 You can edit `src/main.applescript` and rebuild to customize:
 
-- `pollInterval` — how often to scan for banners (default: 1 second)
+- `pollInterval` — how often to scan (default: 1 second)
 - `airplayBadge` — the system badge string used to identify AirPlay banners (default: `AIRPLAY`)
+- `sessionAssertionMarker` — the `pmset` assertion name used to detect an active AirPlay session (default: `com.apple.airplay.audio`)
+- `recentPlayingThreshold` — seconds; if a player was last seen `playing` within this window before the session started, it will be resumed on session end (default: `15`)
 
 ## 🐛 Troubleshooting
 
@@ -80,6 +92,17 @@ You can edit `src/main.applescript` and rebuild to customize:
    osascript -e 'tell application "System Events" to tell process "NotificationCenter" to get entire contents of every window' 2>&1 | tr ',' '\n' | grep -iE "AIRPLAY|button"
    ```
    If you don't see `static text "AIRPLAY"`, the banner identifier may differ on your locale/version — update `airplayBadge` in `src/main.applescript` accordingly.
+
+### Music isn't resuming after the AirPlay session ends
+
+1. **Check that Automation permission is granted.**
+   The first time the applet tries to resume Spotify or Music, macOS shows a one-time prompt asking whether to allow it. If you dismissed it, re-enable it under System Settings → Privacy & Security → Automation → `AirPlay Auto Accept` → toggle on `Spotify` / `Music`.
+2. **Confirm the AirPlay session assertion is what's expected.**
+   With a session active, this should print at least one line:
+   ```bash
+   pmset -g assertions | grep com.apple.airplay.audio
+   ```
+   If nothing prints, your macOS version may use a different marker. Update `sessionAssertionMarker` in `src/main.applescript` to match.
 
 ### "Apple cannot verify..." error on launch
 
