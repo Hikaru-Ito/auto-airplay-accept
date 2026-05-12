@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>AirPlay Auto Accept — Macで「受け入れる」を自動クリック</title>
-	<meta name="description" content="MacでAirPlayを受信するたびに毎回「受け入れる」を押すのが面倒。それを自動化する小さなmacOSアプリ。完全バックグラウンド・オープンソース。">
+	<title>AirPlay Auto Accept — Auto-click "Accept" for AirPlay on macOS</title>
+	<meta name="description" content="A tiny background macOS app that automatically clicks Accept on incoming AirPlay dialogs. Free, open source, fully background.">
 	<meta property="og:title" content="AirPlay Auto Accept">
-	<meta property="og:description" content="Macで AirPlay 受信ダイアログを自動承認する小さなアプリ。">
+	<meta property="og:description" content="A tiny background macOS app that automatically accepts AirPlay connections.">
 	<meta property="og:type" content="website">
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 	<style>
 		* { box-sizing: border-box; margin: 0; padding: 0; }
 		:root {
@@ -30,7 +30,7 @@
 		html, body {
 			background: var(--bg);
 			color: var(--text);
-			font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+			font-family: 'Inter', 'Noto Sans JP', 'Noto Sans SC', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
 			line-height: 1.6;
 			-webkit-font-smoothing: antialiased;
 		}
@@ -56,6 +56,7 @@
 			display: flex;
 			justify-content: space-between;
 			align-items: center;
+			gap: 16px;
 		}
 		.brand {
 			font-weight: 700;
@@ -76,8 +77,72 @@
 			font-size: 14px;
 			box-shadow: 0 0 24px var(--accent-glow);
 		}
-		.nav-links { display: flex; gap: 28px; font-size: 14px; color: var(--text-dim); }
+		.nav-right {
+			display: flex;
+			align-items: center;
+			gap: 24px;
+		}
+		.nav-links {
+			display: flex;
+			gap: 24px;
+			font-size: 14px;
+			color: var(--text-dim);
+		}
 		.nav-links a:hover { color: var(--text); }
+
+		/* ───────── lang switcher ───────── */
+		.lang-switcher {
+			position: relative;
+		}
+		.lang-current {
+			background: rgba(255,255,255,0.04);
+			border: 1px solid var(--border-strong);
+			color: var(--text);
+			padding: 8px 12px 8px 14px;
+			border-radius: 8px;
+			font-size: 13px;
+			font-weight: 500;
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			font-family: inherit;
+			transition: background 0.15s ease;
+		}
+		.lang-current:hover { background: rgba(255,255,255,0.08); }
+		.lang-current svg { width: 12px; height: 12px; opacity: 0.6; }
+		.lang-menu {
+			position: absolute;
+			top: calc(100% + 6px);
+			right: 0;
+			background: var(--surface);
+			border: 1px solid var(--border-strong);
+			border-radius: 10px;
+			padding: 6px;
+			min-width: 160px;
+			list-style: none;
+			box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+			display: none;
+			z-index: 100;
+		}
+		.lang-menu.open { display: block; }
+		.lang-menu li {
+			padding: 8px 12px;
+			border-radius: 6px;
+			font-size: 13.5px;
+			cursor: pointer;
+			color: var(--text-dim);
+			transition: background 0.1s ease, color 0.1s ease;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+		.lang-menu li:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+		.lang-menu li.active { color: var(--accent-2); }
+		.lang-menu li.active::after {
+			content: '✓';
+			font-size: 12px;
+		}
 
 		/* ───────── hero ───────── */
 		.hero {
@@ -191,6 +256,7 @@
 			background: rgba(255,255,255,0.04);
 			color: var(--text);
 			position: relative;
+			font-family: inherit;
 		}
 		.demo-btn.accept {
 			background: linear-gradient(135deg, var(--accent), #5a3fff);
@@ -351,121 +417,394 @@
 				<span class="brand-mark">✦</span>
 				<span>AirPlay Auto Accept</span>
 			</a>
-			<div class="nav-links">
-				<a href="#features">特徴</a>
-				<a href="#install">インストール</a>
-				<a href="https://github.com/Hikaru-Ito/auto-airplay-accept" target="_blank" rel="noopener">GitHub</a>
+			<div class="nav-right">
+				<div class="nav-links">
+					<a href="#features" data-i18n="nav.features">Features</a>
+					<a href="#install" data-i18n="nav.install">Install</a>
+					<a href="https://github.com/Hikaru-Ito/auto-airplay-accept" target="_blank" rel="noopener">GitHub</a>
+				</div>
+				<div class="lang-switcher">
+					<button class="lang-current" id="langCurrent" aria-haspopup="true" aria-expanded="false">
+						<span id="langCurrentLabel">English</span>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+					</button>
+					<ul class="lang-menu" id="langMenu" role="menu">
+						<li data-lang="en" role="menuitem">English</li>
+						<li data-lang="ja" role="menuitem">日本語</li>
+						<li data-lang="zh" role="menuitem">简体中文</li>
+						<li data-lang="ko" role="menuitem">한국어</li>
+						<li data-lang="es" role="menuitem">Español</li>
+					</ul>
+				</div>
 			</div>
 		</nav>
 
 		<header class="hero">
-			<div class="tag"><span class="tag-dot"></span> macOS 11 Big Sur 以降に対応</div>
-			<h1>「受け入れる」を、<br><span class="accent">もう押さない。</span></h1>
-			<p class="lead">
-				MacにAirPlayするたびに出てくる毎回の承認ダイアログ。
-				このアプリを入れておくだけで、その小さな手間がゼロになります。
+			<div class="tag"><span class="tag-dot"></span> <span data-i18n="hero.tag">Works on macOS 11 Big Sur and later</span></div>
+			<h1><span data-i18n-html="hero.title">Stop clicking<br><span class="accent">Accept.</span></span></h1>
+			<p class="lead" data-i18n="hero.lead">
+				Every AirPlay session to your Mac means another approval dialog. Install this and that tiny friction is gone — forever.
 			</p>
 			<div class="cta-row">
 				<a class="btn btn-primary" href="https://github.com/Hikaru-Ito/auto-airplay-accept/releases/latest" target="_blank" rel="noopener">
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
-					ダウンロード（.dmg）
+					<span data-i18n="hero.cta.download">Download (.dmg)</span>
 				</a>
 				<a class="btn btn-secondary" href="https://github.com/Hikaru-Ito/auto-airplay-accept" target="_blank" rel="noopener">
 					<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.63 1.59.23 2.77.11 3.06.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.41-5.27 5.69.41.36.78 1.06.78 2.13v3.16c0 .31.21.67.8.56C20.22 21.38 23.5 17.07 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
-					GitHubで見る
+					<span data-i18n="hero.cta.github">View on GitHub</span>
 				</a>
 			</div>
-			<p class="hero-meta">無料 / オープンソース (MIT License) / 完全バックグラウンド</p>
+			<p class="hero-meta" data-i18n="hero.meta">Free · Open source (MIT) · Fully background</p>
 
 			<div class="demo">
-				<span class="demo-label">自動で承認</span>
+				<span class="demo-label" data-i18n="demo.label">Auto-accepted</span>
 				<div class="demo-window">
-					<div class="demo-title">"iPhone" がAirPlayでこのMacに接続しようとしています</div>
-					<div class="demo-body">この接続を許可しますか？</div>
+					<div class="demo-title" data-i18n="demo.title">"iPhone" would like to AirPlay to this Mac</div>
+					<div class="demo-body" data-i18n="demo.body">Allow this connection?</div>
 					<div class="demo-buttons">
-						<button class="demo-btn">辞退</button>
-						<button class="demo-btn accept">受け入れる</button>
+						<button class="demo-btn" data-i18n="demo.btn.decline">Decline</button>
+						<button class="demo-btn accept" data-i18n="demo.btn.accept">Accept</button>
 					</div>
 				</div>
 			</div>
 		</header>
 
 		<section id="features">
-			<h2>毎回のクリックを、設計で消す。</h2>
-			<p class="section-lead">バックグラウンドで小さく動き続けて、必要な瞬間にだけ仕事をする。</p>
+			<h2 data-i18n="features.title">Designed away, one click at a time.</h2>
+			<p class="section-lead" data-i18n="features.lead">A small daemon that quietly does its job — and only when needed.</p>
 
 			<div class="features">
 				<div class="feature">
 					<div class="feature-icon">
 						<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
 					</div>
-					<h3>ゼロ・インタラクション</h3>
-					<p>AirPlayダイアログが出た瞬間に自動で「受け入れる」をクリック。あなたは何もしなくていい。</p>
+					<h3 data-i18n="feature1.title">Zero interaction</h3>
+					<p data-i18n="feature1.body">The moment an AirPlay dialog appears, the Accept button is clicked. You don't have to do anything.</p>
 				</div>
 
 				<div class="feature">
 					<div class="feature-icon">
 						<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
 					</div>
-					<h3>日本語・英語に対応</h3>
-					<p>「受け入れる」「Accept」のどちらの表示でも検出。OSの言語設定を切り替えても動きます。</p>
+					<h3 data-i18n="feature2.title">Multilingual</h3>
+					<p data-i18n="feature2.body">Detects "Accept", "Allow", "受け入れる", and more. Works regardless of your macOS display language.</p>
 				</div>
 
 				<div class="feature">
 					<div class="feature-icon">
 						<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
 					</div>
-					<h3>完全バックグラウンド</h3>
-					<p>Dockにもメニューバーにも出ません。リソース消費はごくわずか。普段の作業の邪魔をしません。</p>
+					<h3 data-i18n="feature3.title">Fully background</h3>
+					<p data-i18n="feature3.body">No Dock icon, no menu bar item. Negligible CPU and memory footprint. Stays out of your way.</p>
 				</div>
 
 				<div class="feature">
 					<div class="feature-icon">
 						<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>
 					</div>
-					<h3>すべてオープンソース</h3>
-					<p>中身は数十行のAppleScript。コードを読んで安心してから使えます。怪しいことは一切していません。</p>
+					<h3 data-i18n="feature4.title">Open source</h3>
+					<p data-i18n="feature4.body">Under 50 lines of AppleScript. Audit it before you trust it. Nothing hidden, no telemetry.</p>
 				</div>
 			</div>
 		</section>
 
 		<section id="install">
-			<h2>30秒でセットアップ。</h2>
-			<p class="section-lead">DMGを開いて、Applicationsに入れて、起動する。それだけ。</p>
+			<h2 data-i18n="install.title">Set up in 30 seconds.</h2>
+			<p class="section-lead" data-i18n="install.lead">Open the DMG, drag to Applications, launch. Done.</p>
 
 			<div class="steps">
 				<div class="step">
 					<span class="step-num">01</span>
-					<h3>ダウンロード</h3>
-					<p>GitHub Releasesから最新の <code>.dmg</code> をダウンロードします。</p>
+					<h3 data-i18n="step1.title">Download</h3>
+					<p data-i18n-html="step1.body">Grab the latest <code>.dmg</code> from GitHub Releases.</p>
 				</div>
 				<div class="step">
 					<span class="step-num">02</span>
-					<h3>Applicationsへドラッグ</h3>
-					<p>DMGを開いて、アプリを <code>Applications</code> フォルダにドラッグします。</p>
+					<h3 data-i18n="step2.title">Drag to Applications</h3>
+					<p data-i18n-html="step2.body">Open the DMG and drag the app into your <code>Applications</code> folder.</p>
 				</div>
 				<div class="step">
 					<span class="step-num">03</span>
-					<h3>起動して権限を許可</h3>
-					<p>アプリを起動するとアクセシビリティ権限が求められます。許可してください。</p>
+					<h3 data-i18n="step3.title">Launch and grant permission</h3>
+					<p data-i18n="step3.body">On first launch, allow Accessibility permission when prompted.</p>
 				</div>
 				<div class="step">
 					<span class="step-num">04</span>
-					<h3>ログイン項目に追加（任意）</h3>
-					<p>システム設定 → 一般 → ログイン項目 に追加すれば、Mac起動時に自動で動きます。</p>
+					<h3 data-i18n="step4.title">Add to Login Items (optional)</h3>
+					<p data-i18n="step4.body">System Settings → General → Login Items, so it starts automatically on boot.</p>
 				</div>
 			</div>
 		</section>
 
 		<footer>
 			<div>
-				Built by <a href="https://github.com/Hikaru-Ito" target="_blank" rel="noopener">Hikaru Ito</a>
+				<span data-i18n="footer.by">Built by</span>
+				<a href="https://github.com/Hikaru-Ito" target="_blank" rel="noopener">Hikaru Ito</a>
 				<span class="divider">·</span>
-				<a href="https://github.com/Hikaru-Ito/auto-airplay-accept/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+				<a href="https://github.com/Hikaru-Ito/auto-airplay-accept/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="footer.license">MIT License</a>
 				<span class="divider">·</span>
-				<a href="https://github.com/Hikaru-Ito/auto-airplay-accept" target="_blank" rel="noopener">View source</a>
+				<a href="https://github.com/Hikaru-Ito/auto-airplay-accept" target="_blank" rel="noopener" data-i18n="footer.source">View source</a>
 			</div>
 		</footer>
 	</div>
+
+	<script>
+		const translations = {
+			en: {
+				'lang.label': 'English',
+				'nav.features': 'Features',
+				'nav.install': 'Install',
+				'hero.tag': 'Works on macOS 11 Big Sur and later',
+				'hero.title': 'Stop clicking<br><span class="accent">Accept.</span>',
+				'hero.lead': 'Every AirPlay session to your Mac means another approval dialog. Install this and that tiny friction is gone — forever.',
+				'hero.cta.download': 'Download (.dmg)',
+				'hero.cta.github': 'View on GitHub',
+				'hero.meta': 'Free · Open source (MIT) · Fully background',
+				'demo.label': 'Auto-accepted',
+				'demo.title': '"iPhone" would like to AirPlay to this Mac',
+				'demo.body': 'Allow this connection?',
+				'demo.btn.decline': 'Decline',
+				'demo.btn.accept': 'Accept',
+				'features.title': 'Designed away, one click at a time.',
+				'features.lead': 'A small daemon that quietly does its job — and only when needed.',
+				'feature1.title': 'Zero interaction',
+				'feature1.body': "The moment an AirPlay dialog appears, the Accept button is clicked. You don't have to do anything.",
+				'feature2.title': 'Multilingual',
+				'feature2.body': 'Detects "Accept", "Allow", "受け入れる", and more. Works regardless of your macOS display language.',
+				'feature3.title': 'Fully background',
+				'feature3.body': 'No Dock icon, no menu bar item. Negligible CPU and memory footprint. Stays out of your way.',
+				'feature4.title': 'Open source',
+				'feature4.body': 'Under 50 lines of AppleScript. Audit it before you trust it. Nothing hidden, no telemetry.',
+				'install.title': 'Set up in 30 seconds.',
+				'install.lead': 'Open the DMG, drag to Applications, launch. Done.',
+				'step1.title': 'Download',
+				'step1.body': 'Grab the latest <code>.dmg</code> from GitHub Releases.',
+				'step2.title': 'Drag to Applications',
+				'step2.body': 'Open the DMG and drag the app into your <code>Applications</code> folder.',
+				'step3.title': 'Launch and grant permission',
+				'step3.body': 'On first launch, allow Accessibility permission when prompted.',
+				'step4.title': 'Add to Login Items (optional)',
+				'step4.body': 'System Settings → General → Login Items, so it starts automatically on boot.',
+				'footer.by': 'Built by',
+				'footer.license': 'MIT License',
+				'footer.source': 'View source',
+			},
+			ja: {
+				'lang.label': '日本語',
+				'nav.features': '特徴',
+				'nav.install': 'インストール',
+				'hero.tag': 'macOS 11 Big Sur 以降に対応',
+				'hero.title': '「受け入れる」を、<br><span class="accent">もう押さない。</span>',
+				'hero.lead': 'MacにAirPlayするたびに出てくる毎回の承認ダイアログ。このアプリを入れておくだけで、その小さな手間がゼロになります。',
+				'hero.cta.download': 'ダウンロード（.dmg）',
+				'hero.cta.github': 'GitHubで見る',
+				'hero.meta': '無料 · オープンソース (MIT) · 完全バックグラウンド',
+				'demo.label': '自動で承認',
+				'demo.title': '"iPhone" がAirPlayでこのMacに接続しようとしています',
+				'demo.body': 'この接続を許可しますか？',
+				'demo.btn.decline': '辞退',
+				'demo.btn.accept': '受け入れる',
+				'features.title': '毎回のクリックを、設計で消す。',
+				'features.lead': 'バックグラウンドで小さく動き続けて、必要な瞬間にだけ仕事をする。',
+				'feature1.title': 'ゼロ・インタラクション',
+				'feature1.body': 'AirPlayダイアログが出た瞬間に自動で「受け入れる」をクリック。あなたは何もしなくていい。',
+				'feature2.title': '多言語対応',
+				'feature2.body': '「受け入れる」「Accept」「許可」「Allow」のどれにも対応。OSの言語を切り替えても動きます。',
+				'feature3.title': '完全バックグラウンド',
+				'feature3.body': 'Dockにもメニューバーにも出ません。リソース消費はごくわずか。普段の作業の邪魔をしません。',
+				'feature4.title': 'オープンソース',
+				'feature4.body': '中身は50行ほどのAppleScript。コードを読んで安心してから使えます。テレメトリも一切なし。',
+				'install.title': '30秒でセットアップ。',
+				'install.lead': 'DMGを開いて、Applicationsに入れて、起動する。それだけ。',
+				'step1.title': 'ダウンロード',
+				'step1.body': 'GitHub Releasesから最新の <code>.dmg</code> をダウンロード。',
+				'step2.title': 'Applicationsへドラッグ',
+				'step2.body': 'DMGを開いて、アプリを <code>Applications</code> フォルダにドラッグ。',
+				'step3.title': '起動して権限を許可',
+				'step3.body': '初回起動時、アクセシビリティ権限を求められるので許可してください。',
+				'step4.title': 'ログイン項目に追加（任意）',
+				'step4.body': 'システム設定 → 一般 → ログイン項目 に追加すれば、Mac起動時に自動で動きます。',
+				'footer.by': 'Built by',
+				'footer.license': 'MIT License',
+				'footer.source': 'ソースを見る',
+			},
+			zh: {
+				'lang.label': '简体中文',
+				'nav.features': '特性',
+				'nav.install': '安装',
+				'hero.tag': '支持 macOS 11 Big Sur 及更高版本',
+				'hero.title': '别再点<br><span class="accent">"接受"了。</span>',
+				'hero.lead': '每次向 Mac 进行 AirPlay 都要点一次确认对话框。装上这个应用，那一点点摩擦就此消失。',
+				'hero.cta.download': '下载 (.dmg)',
+				'hero.cta.github': '在 GitHub 查看',
+				'hero.meta': '免费 · 开源 (MIT) · 完全后台运行',
+				'demo.label': '自动接受',
+				'demo.title': '"iPhone" 想要通过 AirPlay 连接到这台 Mac',
+				'demo.body': '允许此连接？',
+				'demo.btn.decline': '拒绝',
+				'demo.btn.accept': '接受',
+				'features.title': '一次点击,设计移除。',
+				'features.lead': '一个小后台进程,只在需要的时候默默工作。',
+				'feature1.title': '零交互',
+				'feature1.body': 'AirPlay 对话框一出现就自动点击"接受"。你什么都不用做。',
+				'feature2.title': '多语言支持',
+				'feature2.body': '识别"Accept"、"Allow"、"受け入れる"等多种按钮。无论 macOS 的显示语言是什么都能工作。',
+				'feature3.title': '完全后台',
+				'feature3.body': 'Dock 不显示,菜单栏也不显示。CPU 与内存占用极低,不会打扰你工作。',
+				'feature4.title': '开源',
+				'feature4.body': '不到 50 行 AppleScript。你可以先审计再信任。没有任何隐藏行为或遥测。',
+				'install.title': '30 秒完成设置。',
+				'install.lead': '打开 DMG,拖到应用程序,启动。就这么简单。',
+				'step1.title': '下载',
+				'step1.body': '从 GitHub Releases 下载最新的 <code>.dmg</code>。',
+				'step2.title': '拖到应用程序',
+				'step2.body': '打开 DMG,将应用拖到 <code>Applications</code> 文件夹。',
+				'step3.title': '启动并授权',
+				'step3.body': '首次启动时会请求"辅助功能"权限,请允许。',
+				'step4.title': '添加到登录项(可选)',
+				'step4.body': '系统设置 → 通用 → 登录项,设置后开机自动启动。',
+				'footer.by': '作者',
+				'footer.license': 'MIT 许可证',
+				'footer.source': '查看源码',
+			},
+			ko: {
+				'lang.label': '한국어',
+				'nav.features': '기능',
+				'nav.install': '설치',
+				'hero.tag': 'macOS 11 Big Sur 이상 지원',
+				'hero.title': '"수락" 클릭은<br><span class="accent">이제 그만.</span>',
+				'hero.lead': 'Mac으로 AirPlay할 때마다 나타나는 승인 대화 상자. 이 앱을 설치하면 그 작은 마찰이 영원히 사라집니다.',
+				'hero.cta.download': '다운로드 (.dmg)',
+				'hero.cta.github': 'GitHub에서 보기',
+				'hero.meta': '무료 · 오픈 소스 (MIT) · 완전 백그라운드',
+				'demo.label': '자동 수락',
+				'demo.title': '"iPhone"이 이 Mac에 AirPlay하려고 합니다',
+				'demo.body': '이 연결을 허용하시겠습니까?',
+				'demo.btn.decline': '거절',
+				'demo.btn.accept': '수락',
+				'features.title': '클릭 하나하나, 설계로 없애다.',
+				'features.lead': '필요한 순간에만 조용히 일하는 작은 백그라운드 데몬.',
+				'feature1.title': '제로 인터랙션',
+				'feature1.body': 'AirPlay 대화 상자가 뜨는 순간 "수락" 버튼이 자동 클릭됩니다. 아무것도 하지 않아도 됩니다.',
+				'feature2.title': '다국어 지원',
+				'feature2.body': '"Accept", "Allow", "受け入れる" 등 여러 표기를 인식. macOS 표시 언어와 무관하게 작동.',
+				'feature3.title': '완전 백그라운드',
+				'feature3.body': 'Dock 아이콘도, 메뉴 막대 아이콘도 없습니다. CPU와 메모리 사용량은 미미합니다.',
+				'feature4.title': '오픈 소스',
+				'feature4.body': '50줄 이내의 AppleScript. 신뢰하기 전에 코드를 검토할 수 있습니다. 텔레메트리도 없습니다.',
+				'install.title': '30초만에 설치 완료.',
+				'install.lead': 'DMG 열기, 응용 프로그램에 드래그, 실행. 끝.',
+				'step1.title': '다운로드',
+				'step1.body': 'GitHub Releases에서 최신 <code>.dmg</code>를 받습니다.',
+				'step2.title': '응용 프로그램에 드래그',
+				'step2.body': 'DMG를 열고 앱을 <code>Applications</code> 폴더로 드래그합니다.',
+				'step3.title': '실행 후 권한 허용',
+				'step3.body': '첫 실행 시 손쉬운 사용 권한을 요청하면 허용해 주세요.',
+				'step4.title': '로그인 항목에 추가(선택)',
+				'step4.body': '시스템 설정 → 일반 → 로그인 항목에 추가하면 부팅 시 자동 시작됩니다.',
+				'footer.by': '제작',
+				'footer.license': 'MIT 라이선스',
+				'footer.source': '소스 보기',
+			},
+			es: {
+				'lang.label': 'Español',
+				'nav.features': 'Características',
+				'nav.install': 'Instalación',
+				'hero.tag': 'Compatible con macOS 11 Big Sur o superior',
+				'hero.title': 'Deja de pulsar<br><span class="accent">"Aceptar".</span>',
+				'hero.lead': 'Cada sesión de AirPlay a tu Mac significa otro diálogo de aprobación. Instala esto y esa pequeña fricción desaparece para siempre.',
+				'hero.cta.download': 'Descargar (.dmg)',
+				'hero.cta.github': 'Ver en GitHub',
+				'hero.meta': 'Gratis · Código abierto (MIT) · Totalmente en segundo plano',
+				'demo.label': 'Auto-aceptado',
+				'demo.title': '"iPhone" quiere usar AirPlay con este Mac',
+				'demo.body': '¿Permitir esta conexión?',
+				'demo.btn.decline': 'Rechazar',
+				'demo.btn.accept': 'Aceptar',
+				'features.title': 'Diseñado para eliminar cada clic.',
+				'features.lead': 'Un pequeño daemon que hace su trabajo en silencio, solo cuando hace falta.',
+				'feature1.title': 'Cero interacción',
+				'feature1.body': 'En cuanto aparece un diálogo de AirPlay, el botón Aceptar se pulsa solo. Tú no tienes que hacer nada.',
+				'feature2.title': 'Multilingüe',
+				'feature2.body': 'Detecta "Accept", "Allow", "受け入れる" y más. Funciona sea cual sea el idioma de tu macOS.',
+				'feature3.title': 'Totalmente en segundo plano',
+				'feature3.body': 'Sin icono en el Dock ni en la barra de menú. Consumo mínimo de CPU y memoria.',
+				'feature4.title': 'Código abierto',
+				'feature4.body': 'Menos de 50 líneas de AppleScript. Audítalo antes de confiar en él. Sin telemetría, sin trucos.',
+				'install.title': 'Instalación en 30 segundos.',
+				'install.lead': 'Abre el DMG, arrastra a Aplicaciones, ejecuta. Hecho.',
+				'step1.title': 'Descarga',
+				'step1.body': 'Descarga el último <code>.dmg</code> desde GitHub Releases.',
+				'step2.title': 'Arrastra a Aplicaciones',
+				'step2.body': 'Abre el DMG y arrastra la app a la carpeta <code>Applications</code>.',
+				'step3.title': 'Lanza y concede permisos',
+				'step3.body': 'En la primera ejecución, permite el acceso a Accesibilidad cuando se solicite.',
+				'step4.title': 'Añadir a Ítems de inicio (opcional)',
+				'step4.body': 'Ajustes del Sistema → General → Ítems de inicio, para que arranque solo.',
+				'footer.by': 'Hecho por',
+				'footer.license': 'Licencia MIT',
+				'footer.source': 'Ver código',
+			},
+		};
+
+		const SUPPORTED = ['en', 'ja', 'zh', 'ko', 'es'];
+		const STORAGE_KEY = 'aaa.lang';
+
+		function detectLang() {
+			const stored = localStorage.getItem(STORAGE_KEY);
+			if (stored && SUPPORTED.includes(stored)) return stored;
+			const nav = (navigator.language || 'en').toLowerCase();
+			if (nav.startsWith('ja')) return 'ja';
+			if (nav.startsWith('zh')) return 'zh';
+			if (nav.startsWith('ko')) return 'ko';
+			if (nav.startsWith('es')) return 'es';
+			return 'en';
+		}
+
+		function applyLang(lang) {
+			const dict = translations[lang] || translations.en;
+			document.documentElement.lang = lang;
+			document.querySelectorAll('[data-i18n]').forEach(el => {
+				const key = el.getAttribute('data-i18n');
+				if (dict[key] !== undefined) el.textContent = dict[key];
+			});
+			document.querySelectorAll('[data-i18n-html]').forEach(el => {
+				const key = el.getAttribute('data-i18n-html');
+				if (dict[key] !== undefined) el.innerHTML = dict[key];
+			});
+			document.getElementById('langCurrentLabel').textContent = dict['lang.label'];
+			document.querySelectorAll('#langMenu li').forEach(li => {
+				li.classList.toggle('active', li.dataset.lang === lang);
+			});
+			localStorage.setItem(STORAGE_KEY, lang);
+		}
+
+		document.addEventListener('DOMContentLoaded', () => {
+			const btn = document.getElementById('langCurrent');
+			const menu = document.getElementById('langMenu');
+
+			btn.addEventListener('click', e => {
+				e.stopPropagation();
+				const isOpen = menu.classList.toggle('open');
+				btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+			});
+
+			menu.querySelectorAll('li').forEach(li => {
+				li.addEventListener('click', () => {
+					applyLang(li.dataset.lang);
+					menu.classList.remove('open');
+					btn.setAttribute('aria-expanded', 'false');
+				});
+			});
+
+			document.addEventListener('click', () => {
+				menu.classList.remove('open');
+				btn.setAttribute('aria-expanded', 'false');
+			});
+
+			applyLang(detectLang());
+		});
+	</script>
 </body>
 </html>
