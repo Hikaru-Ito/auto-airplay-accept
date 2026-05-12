@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>AirPlay Auto Accept — Macで「受け入れる」を自動クリック</title>
+	<meta name="description" content="MacでAirPlayを受信するたびに毎回「受け入れる」を押すのが面倒。それを自動化する小さなmacOSアプリ。完全バックグラウンド・オープンソース。">
+	<meta property="og:title" content="AirPlay Auto Accept">
+	<meta property="og:description" content="Macで AirPlay 受信ダイアログを自動承認する小さなアプリ。">
+	<meta property="og:type" content="website">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+	<style>
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+		:root {
+			--bg: #0a0a0f;
+			--bg-2: #11121a;
+			--surface: #181923;
+			--border: rgba(255,255,255,0.08);
+			--border-strong: rgba(255,255,255,0.16);
+			--text: #f3f4f8;
+			--text-dim: #9aa0b4;
+			--text-faint: #6b7088;
+			--accent: #7c5cff;
+			--accent-2: #4cc9f0;
+			--accent-glow: rgba(124, 92, 255, 0.35);
+			--success: #4ade80;
+		}
+		html, body {
+			background: var(--bg);
+			color: var(--text);
+			font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+			line-height: 1.6;
+			-webkit-font-smoothing: antialiased;
+		}
+		body {
+			background:
+				radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124, 92, 255, 0.18), transparent 60%),
+				radial-gradient(ellipse 60% 40% at 80% 30%, rgba(76, 201, 240, 0.10), transparent 60%),
+				var(--bg);
+			min-height: 100vh;
+		}
+		a { color: inherit; text-decoration: none; }
+		code, pre { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; }
+
+		.container {
+			max-width: 1100px;
+			margin: 0 auto;
+			padding: 0 24px;
+		}
+
+		/* ───────── nav ───────── */
+		nav {
+			padding: 24px 0;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+		.brand {
+			font-weight: 700;
+			letter-spacing: -0.01em;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			font-size: 16px;
+		}
+		.brand-mark {
+			width: 28px;
+			height: 28px;
+			border-radius: 8px;
+			background: linear-gradient(135deg, var(--accent), var(--accent-2));
+			display: grid;
+			place-items: center;
+			color: #fff;
+			font-size: 14px;
+			box-shadow: 0 0 24px var(--accent-glow);
+		}
+		.nav-links { display: flex; gap: 28px; font-size: 14px; color: var(--text-dim); }
+		.nav-links a:hover { color: var(--text); }
+
+		/* ───────── hero ───────── */
+		.hero {
+			padding: 80px 0 100px;
+			text-align: center;
+			position: relative;
+		}
+		.tag {
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			padding: 6px 14px;
+			border: 1px solid var(--border-strong);
+			border-radius: 999px;
+			font-size: 12px;
+			color: var(--text-dim);
+			margin-bottom: 28px;
+			background: rgba(255,255,255,0.02);
+		}
+		.tag-dot {
+			width: 6px; height: 6px;
+			background: var(--success);
+			border-radius: 50%;
+			box-shadow: 0 0 8px var(--success);
+		}
+		h1 {
+			font-size: clamp(40px, 6vw, 72px);
+			font-weight: 800;
+			letter-spacing: -0.03em;
+			line-height: 1.05;
+			margin-bottom: 24px;
+		}
+		h1 .accent {
+			background: linear-gradient(120deg, var(--accent) 0%, var(--accent-2) 100%);
+			-webkit-background-clip: text;
+			background-clip: text;
+			color: transparent;
+		}
+		.lead {
+			font-size: clamp(16px, 1.6vw, 19px);
+			color: var(--text-dim);
+			max-width: 620px;
+			margin: 0 auto 40px;
+		}
+		.cta-row {
+			display: flex;
+			gap: 14px;
+			justify-content: center;
+			flex-wrap: wrap;
+		}
+		.btn {
+			display: inline-flex;
+			align-items: center;
+			gap: 10px;
+			padding: 14px 26px;
+			border-radius: 12px;
+			font-weight: 600;
+			font-size: 15px;
+			transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+			border: 1px solid transparent;
+		}
+		.btn-primary {
+			background: linear-gradient(135deg, var(--accent), #5a3fff);
+			color: white;
+			box-shadow: 0 10px 32px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.2);
+		}
+		.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 40px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.2); }
+		.btn-secondary {
+			background: rgba(255,255,255,0.04);
+			border-color: var(--border-strong);
+			color: var(--text);
+		}
+		.btn-secondary:hover { background: rgba(255,255,255,0.08); }
+		.btn svg { width: 18px; height: 18px; }
+
+		.hero-meta {
+			margin-top: 28px;
+			font-size: 13px;
+			color: var(--text-faint);
+		}
+
+		/* ───────── demo ───────── */
+		.demo {
+			margin-top: 60px;
+			padding: 24px;
+			border: 1px solid var(--border);
+			border-radius: 20px;
+			background: var(--surface);
+			max-width: 720px;
+			margin-left: auto;
+			margin-right: auto;
+			box-shadow: 0 30px 80px rgba(0,0,0,0.4);
+			position: relative;
+		}
+		.demo-window {
+			background: #1f2030;
+			border-radius: 12px;
+			padding: 32px 28px;
+			text-align: left;
+			border: 1px solid rgba(255,255,255,0.06);
+		}
+		.demo-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+		.demo-body { font-size: 13px; color: var(--text-dim); margin-bottom: 22px; }
+		.demo-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+		.demo-btn {
+			padding: 8px 18px;
+			border-radius: 8px;
+			font-size: 13px;
+			font-weight: 500;
+			border: 1px solid var(--border-strong);
+			background: rgba(255,255,255,0.04);
+			color: var(--text);
+			position: relative;
+		}
+		.demo-btn.accept {
+			background: linear-gradient(135deg, var(--accent), #5a3fff);
+			border-color: transparent;
+			color: white;
+			animation: autoClick 3.2s ease-in-out infinite;
+		}
+		.demo-btn.accept::after {
+			content: '';
+			position: absolute;
+			top: 50%; left: 50%;
+			width: 6px; height: 6px;
+			border-radius: 50%;
+			background: white;
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(1);
+			animation: clickRipple 3.2s ease-in-out infinite;
+		}
+		@keyframes autoClick {
+			0%, 50% { transform: scale(1); box-shadow: 0 0 0 var(--accent-glow); }
+			55% { transform: scale(0.94); box-shadow: 0 0 24px var(--accent-glow); }
+			60%, 100% { transform: scale(1); box-shadow: 0 0 0 var(--accent-glow); }
+		}
+		@keyframes clickRipple {
+			0%, 50% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+			55% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+			80% { opacity: 0; transform: translate(-50%, -50%) scale(8); }
+			100% { opacity: 0; transform: translate(-50%, -50%) scale(8); }
+		}
+		.demo-label {
+			position: absolute;
+			top: -12px;
+			left: 50%;
+			transform: translateX(-50%);
+			background: var(--bg);
+			border: 1px solid var(--border-strong);
+			padding: 4px 12px;
+			border-radius: 999px;
+			font-size: 11px;
+			color: var(--text-dim);
+			letter-spacing: 0.05em;
+			text-transform: uppercase;
+		}
+
+		/* ───────── section ───────── */
+		section {
+			padding: 100px 0;
+		}
+		section h2 {
+			font-size: clamp(28px, 4vw, 44px);
+			font-weight: 700;
+			letter-spacing: -0.02em;
+			margin-bottom: 16px;
+			text-align: center;
+		}
+		section .section-lead {
+			color: var(--text-dim);
+			text-align: center;
+			max-width: 540px;
+			margin: 0 auto 60px;
+		}
+
+		/* ───────── features ───────── */
+		.features {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+			gap: 20px;
+		}
+		.feature {
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: 16px;
+			padding: 28px 24px;
+			transition: border-color 0.2s ease, transform 0.2s ease;
+		}
+		.feature:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+		.feature-icon {
+			width: 40px; height: 40px;
+			background: rgba(124, 92, 255, 0.12);
+			border-radius: 10px;
+			display: grid; place-items: center;
+			margin-bottom: 18px;
+			color: var(--accent);
+		}
+		.feature h3 {
+			font-size: 16px;
+			font-weight: 600;
+			margin-bottom: 8px;
+		}
+		.feature p {
+			font-size: 14px;
+			color: var(--text-dim);
+		}
+
+		/* ───────── install ───────── */
+		.steps {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+			gap: 24px;
+			margin-top: 40px;
+		}
+		.step {
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: 16px;
+			padding: 28px;
+			position: relative;
+		}
+		.step-num {
+			position: absolute;
+			top: 24px; right: 24px;
+			font-family: 'JetBrains Mono', monospace;
+			font-size: 12px;
+			color: var(--text-faint);
+			letter-spacing: 0.1em;
+		}
+		.step h3 {
+			font-size: 17px;
+			font-weight: 600;
+			margin-bottom: 12px;
+		}
+		.step p {
+			font-size: 14px;
+			color: var(--text-dim);
+			margin-bottom: 12px;
+		}
+		.step code {
+			display: inline-block;
+			padding: 2px 8px;
+			background: rgba(255,255,255,0.06);
+			border-radius: 6px;
+			font-size: 12.5px;
+			color: var(--accent-2);
+		}
+
+		/* ───────── footer ───────── */
+		footer {
+			border-top: 1px solid var(--border);
+			padding: 40px 0;
+			text-align: center;
+			color: var(--text-faint);
+			font-size: 13px;
+		}
+		footer a:hover { color: var(--text); }
+		footer .divider { margin: 0 12px; color: var(--text-faint); }
+
+		@media (max-width: 640px) {
+			.hero { padding: 60px 0 80px; }
+			section { padding: 80px 0; }
+			.nav-links { display: none; }
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<nav>
+			<a class="brand" href="#">
+				<span class="brand-mark">✦</span>
+				<span>AirPlay Auto Accept</span>
+			</a>
+			<div class="nav-links">
+				<a href="#features">特徴</a>
+				<a href="#install">インストール</a>
+				<a href="https://github.com/Hikaru-Ito/auto-airplay-accept" target="_blank" rel="noopener">GitHub</a>
+			</div>
+		</nav>
+
+		<header class="hero">
+			<div class="tag"><span class="tag-dot"></span> macOS 11 Big Sur 以降に対応</div>
+			<h1>「受け入れる」を、<br><span class="accent">もう押さない。</span></h1>
+			<p class="lead">
+				MacにAirPlayするたびに出てくる毎回の承認ダイアログ。
+				このアプリを入れておくだけで、その小さな手間がゼロになります。
+			</p>
+			<div class="cta-row">
+				<a class="btn btn-primary" href="https://github.com/Hikaru-Ito/auto-airplay-accept/releases/latest" target="_blank" rel="noopener">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+					ダウンロード（.dmg）
+				</a>
+				<a class="btn btn-secondary" href="https://github.com/Hikaru-Ito/auto-airplay-accept" target="_blank" rel="noopener">
+					<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.63 1.59.23 2.77.11 3.06.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.41-5.27 5.69.41.36.78 1.06.78 2.13v3.16c0 .31.21.67.8.56C20.22 21.38 23.5 17.07 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+					GitHubで見る
+				</a>
+			</div>
+			<p class="hero-meta">無料 / オープンソース (MIT License) / 完全バックグラウンド</p>
+
+			<div class="demo">
+				<span class="demo-label">自動で承認</span>
+				<div class="demo-window">
+					<div class="demo-title">"iPhone" がAirPlayでこのMacに接続しようとしています</div>
+					<div class="demo-body">この接続を許可しますか？</div>
+					<div class="demo-buttons">
+						<button class="demo-btn">辞退</button>
+						<button class="demo-btn accept">受け入れる</button>
+					</div>
+				</div>
+			</div>
+		</header>
+
+		<section id="features">
+			<h2>毎回のクリックを、設計で消す。</h2>
+			<p class="section-lead">バックグラウンドで小さく動き続けて、必要な瞬間にだけ仕事をする。</p>
+
+			<div class="features">
+				<div class="feature">
+					<div class="feature-icon">
+						<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+					</div>
+					<h3>ゼロ・インタラクション</h3>
+					<p>AirPlayダイアログが出た瞬間に自動で「受け入れる」をクリック。あなたは何もしなくていい。</p>
+				</div>
+
+				<div class="feature">
+					<div class="feature-icon">
+						<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+					</div>
+					<h3>日本語・英語に対応</h3>
+					<p>「受け入れる」「Accept」のどちらの表示でも検出。OSの言語設定を切り替えても動きます。</p>
+				</div>
+
+				<div class="feature">
+					<div class="feature-icon">
+						<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+					</div>
+					<h3>完全バックグラウンド</h3>
+					<p>Dockにもメニューバーにも出ません。リソース消費はごくわずか。普段の作業の邪魔をしません。</p>
+				</div>
+
+				<div class="feature">
+					<div class="feature-icon">
+						<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>
+					</div>
+					<h3>すべてオープンソース</h3>
+					<p>中身は数十行のAppleScript。コードを読んで安心してから使えます。怪しいことは一切していません。</p>
+				</div>
+			</div>
+		</section>
+
+		<section id="install">
+			<h2>30秒でセットアップ。</h2>
+			<p class="section-lead">DMGを開いて、Applicationsに入れて、起動する。それだけ。</p>
+
+			<div class="steps">
+				<div class="step">
+					<span class="step-num">01</span>
+					<h3>ダウンロード</h3>
+					<p>GitHub Releasesから最新の <code>.dmg</code> をダウンロードします。</p>
+				</div>
+				<div class="step">
+					<span class="step-num">02</span>
+					<h3>Applicationsへドラッグ</h3>
+					<p>DMGを開いて、アプリを <code>Applications</code> フォルダにドラッグします。</p>
+				</div>
+				<div class="step">
+					<span class="step-num">03</span>
+					<h3>起動して権限を許可</h3>
+					<p>アプリを起動するとアクセシビリティ権限が求められます。許可してください。</p>
+				</div>
+				<div class="step">
+					<span class="step-num">04</span>
+					<h3>ログイン項目に追加（任意）</h3>
+					<p>システム設定 → 一般 → ログイン項目 に追加すれば、Mac起動時に自動で動きます。</p>
+				</div>
+			</div>
+		</section>
+
+		<footer>
+			<div>
+				Built by <a href="https://github.com/Hikaru-Ito" target="_blank" rel="noopener">Hikaru Ito</a>
+				<span class="divider">·</span>
+				<a href="https://github.com/Hikaru-Ito/auto-airplay-accept/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+				<span class="divider">·</span>
+				<a href="https://github.com/Hikaru-Ito/auto-airplay-accept" target="_blank" rel="noopener">View source</a>
+			</div>
+		</footer>
+	</div>
+</body>
+</html>
