@@ -14,11 +14,11 @@ Install this app and that click goes away. It runs silently in the background an
 
 ## ✨ Features
 
-- **Zero interaction** — automatically clicks "Accept" the moment an AirPlay dialog appears
-- **Multilingual button detection** — recognizes `Accept`, `Allow`, `受け入れる`, `許可`, and more
+- **Zero interaction** — automatically clicks "Accept" the moment an AirPlay banner appears
+- **Language-independent** — identifies the Accept button by structure/position, not localized label, so it works on any macOS language
 - **Fully background** — no Dock icon, no menu bar item, no window
 - **Lightweight** — built on AppleScript; negligible CPU/memory footprint
-- **Open source** — under 50 lines of AppleScript you can audit before running
+- **Open source** — under 100 lines of AppleScript you can audit before running
 
 ## 📦 Installation
 
@@ -44,38 +44,42 @@ The build uses only macOS-bundled tools (`osacompile` and `PlistBuddy`). No addi
 
 ## 🛠 How it works
 
-1. `osacompile -s` compiles the AppleScript as a **stay-open applet**
-2. The applet's `on idle` handler runs once per second, walking through a list of candidate processes (e.g. `ControlCenter`)
-3. For each process, it inspects open windows for a button labeled `Accept`, `Allow`, `受け入れる`, etc. and clicks it if found
-4. `LSUIElement = true` in `Info.plist` hides the app from the Dock and menu bar
+The AirPlay receiver prompt on modern macOS is **not a regular dialog window** — it's a notification banner rendered by the `NotificationCenter` process, and its button labels are not exposed via the Accessibility API. A naive `click button "Accept"` does not work.
 
-The entire implementation lives in [`src/main.applescript`](src/main.applescript) — around 40 lines.
+1. `osacompile -s` compiles the AppleScript as a **stay-open applet**
+2. The applet's `on idle` handler runs once per second
+3. It walks the UI element tree of `NotificationCenter`'s windows and looks for a group containing:
+   - a static text whose value is `AIRPLAY` (this is the system badge, identical across all locales)
+   - at least 2 buttons (Decline / Accept)
+4. Among those buttons, it clicks the one with the **largest Y coordinate** (the one positioned lower on screen) — that's always the Accept button on macOS
+5. `LSUIElement = true` in `Info.plist` hides the app from the Dock and menu bar
+
+The entire implementation lives in [`src/main.applescript`](src/main.applescript) — around 90 lines.
 
 ## ⚙️ Configuration
 
 You can edit `src/main.applescript` and rebuild to customize:
 
-- `pollInterval` — how often to scan for dialogs (default: 1 second)
-- `targetButtons` — list of button labels to look for
-- `candidateProcesses` — list of processes that may host AirPlay dialogs
+- `pollInterval` — how often to scan for banners (default: 1 second)
+- `airplayBadge` — the system badge string used to identify AirPlay banners (default: `AIRPLAY`)
 
 ## 🐛 Troubleshooting
 
 ### The app isn't clicking anything
 
 1. **Check that Accessibility permission is granted.**
-   System Settings → Privacy & Security → Accessibility → confirm `AirPlay Auto Accept` is in the list and toggled ON.
+   System Settings → Privacy & Security → Accessibility → confirm `AirPlay Auto Accept` is in the list and toggled ON. Note: macOS binds this permission to the exact app path and code signature, so if you rebuilt the app or moved it, you may need to remove and re-add it.
 2. **Check that the app is running.**
    ```bash
    pgrep -f "AirPlay Auto Accept"
    ```
    No output means the app has quit.
-3. **Find out which process is hosting the dialog.**
-   While the dialog is visible, run:
+3. **Inspect the banner structure.**
+   With the AirPlay banner visible, this dumps the relevant UI tree:
    ```bash
-   osascript -e 'tell application "System Events" to get name of every process whose visible is true'
+   osascript -e 'tell application "System Events" to tell process "NotificationCenter" to get entire contents of every window' 2>&1 | tr ',' '\n' | grep -iE "AIRPLAY|button"
    ```
-   Add any new process name to `candidateProcesses` in `src/main.applescript` and rebuild.
+   If you don't see `static text "AIRPLAY"`, the banner identifier may differ on your locale/version — update `airplayBadge` in `src/main.applescript` accordingly.
 
 ### "Apple cannot verify..." error on launch
 
